@@ -1,0 +1,45 @@
+# Haelt kuerzel.json frisch: taeglich in der Frueh, dazu von Hand ausloesbar.
+#
+# Die Datei wird NUR abgelegt, wenn sich wirklich ein Kuerzel geaendert hat
+# (das Skript schreibt sonst gar nicht). Scheitert die SEC dreimal, bricht
+# der Lauf ab und der alte Stand bleibt liegen; Heliot arbeitet dann mit dem
+# Verzeichnis von gestern weiter.
+name: Kuerzelverzeichnis auffrischen
+
+on:
+  schedule:
+    # 04:10 UTC, also 06:10 Wiener Zeit im Sommer und 05:10 im Winter.
+    - cron: "10 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kuerzel
+  cancel-in-progress: false
+
+jobs:
+  bauen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verzeichnis bauen
+        run: python kuerzel_bauen.py
+
+      - name: Nur bei echter Aenderung ablegen
+        run: |
+          if git diff --quiet -- kuerzel.json; then
+            echo "Unveraendert, nichts abzulegen."
+            exit 0
+          fi
+          git config user.name "Kuerzel-Bot"
+          git config user.email "actions@github.com"
+          git add kuerzel.json
+          git commit -m "Kuerzelverzeichnis vom $(date -u +%d.%m.%Y)"
+          git push
